@@ -48,53 +48,70 @@ export default function AdminDashboard() {
   };
 
   const parseQuestionText = (text: string) => {
-    try {
-      const lines = text.trim().split('\n');
-      const questionMatch = lines[0].match(/^\d+\.\s*(.+)/);
-      if (!questionMatch) throw new Error("Invalid question format");
-      
-      const question = questionMatch[1];
-      const options = [];
-      let correctAnswer = "";
-      
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line.startsWith('correct:')) {
-          const correctOption = line.split(':')[1].trim();
-          correctAnswer = options[correctOption.charCodeAt(0) - 65]; // Convert A->0, B->1, etc.
-          break;
+    const questions = [];
+    const lines = text.trim().split('\n').map(line => line.trim()).filter(line => line);
+    let currentQuestion: any = null;
+
+    for (const line of lines) {
+      // Start of a new question
+      const questionMatch = line.match(/^\d+\.\s*(.+)/);
+      if (questionMatch) {
+        // If there's a previous question, add it to the list
+        if (currentQuestion) {
+          if (!currentQuestion.options || currentQuestion.options.length !== 4 || !currentQuestion.correctAnswer) {
+            throw new Error(`Invalid question format: ${JSON.stringify(currentQuestion)}`);
+          }
+          questions.push(currentQuestion);
         }
-        if (line.match(/^[A-D]\)/)) {
-          options.push(line.substring(3).trim());
-        }
+        
+        // Start a new question
+        currentQuestion = {
+          question: questionMatch[1],
+          options: [],
+          correctAnswer: ""
+        };
+        continue;
       }
-      
-      if (options.length !== 4 || !correctAnswer) {
-        throw new Error("Invalid format: Must have 4 options and a correct answer");
+
+      // Parsing options (more flexible parsing)
+      const optionMatch = line.match(/^([A-D])\)\s*(.+)/i);
+      if (optionMatch && currentQuestion) {
+        currentQuestion.options.push(optionMatch[2].trim());
+        continue;
       }
-      
-      return {
-        question,
-        options,
-        correctAnswer
-      };
-    } catch (error) {
-      console.error('Error parsing question:', error);
-      return null;
+
+      // Parsing answer (more flexible parsing)
+      const answerMatch = line.match(/^Answer:\s*([A-D])/i);
+      if (answerMatch && currentQuestion) {
+        const answerIndex = answerMatch[1].toUpperCase().charCodeAt(0) - 65;
+        currentQuestion.correctAnswer = currentQuestion.options[answerIndex];
+        continue;
+      }
     }
+
+    // Add the last question
+    if (currentQuestion) {
+      if (!currentQuestion.options || currentQuestion.options.length !== 4 || !currentQuestion.correctAnswer) {
+        throw new Error(`Invalid question format: ${JSON.stringify(currentQuestion)}`);
+      }
+      questions.push(currentQuestion);
+    }
+
+    return questions;
   };
 
-  const handleParseQuestion = () => {
-    const parsedQuestion = parseQuestionText(questionText);
-    if (parsedQuestion) {
+  const handleParseQuestions = () => {
+    try {
+      const parsedQuestions = parseQuestionText(questionText);
       setNewQuiz({
         ...newQuiz,
-        questions: [...newQuiz.questions, parsedQuestion]
+        questions: [...newQuiz.questions, ...parsedQuestions]
       });
       setQuestionText(""); // Clear the input after successful parsing
       setError("");
-    } else {
-      setError("Failed to parse question. Please check the format.");
+    } catch (error) {
+      console.error('Error parsing questions:', error);
+      setError(error instanceof Error ? error.message : "Failed to parse questions. Please check the format.");
     }
   };
 
@@ -161,6 +178,13 @@ export default function AdminDashboard() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleRemoveQuestion = (indexToRemove: number) => {
+    setNewQuiz({
+      ...newQuiz,
+      questions: newQuiz.questions.filter((_, index) => index !== indexToRemove)
+    });
   };
 
   if (loading) {
@@ -242,20 +266,35 @@ export default function AdminDashboard() {
 
               <div className="mb-6">
                 <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Add Question (Format: "1. Question text\nA) Option1\nB) Option2\nC) Option3\nD) Option4\ncorrect: A")
+                  Add Questions (Format:
+                  <pre className="bg-gray-100 p-2 rounded mt-2 text-sm">
+{`1. Question text
+A) Option1
+B) Option2
+C) Option3
+D) Option4
+Answer: B
+
+2. Next question text
+A) Option1
+B) Option2
+C) Option3
+D) Option4
+Answer: C`}
+                  </pre>
                 </label>
                 <textarea
                   value={questionText}
                   onChange={(e) => setQuestionText(e.target.value)}
-                  className="w-full p-2 border rounded min-h-[200px]"
-                  placeholder="Enter question in the specified format..."
+                  className="w-full p-2 border rounded min-h-[300px]"
+                  placeholder="Enter multiple questions in the specified format..."
                 />
                 <button
                   type="button"
-                  onClick={handleParseQuestion}
+                  onClick={handleParseQuestions}
                   className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                 >
-                  Add Question
+                  Add Questions
                 </button>
               </div>
 
@@ -263,15 +302,30 @@ export default function AdminDashboard() {
                 <div className="mb-6">
                   <h3 className="text-lg font-bold mb-2">Added Questions:</h3>
                   {newQuiz.questions.map((q, idx) => (
-                    <div key={idx} className="mb-2 p-2 border rounded">
-                      <p><strong>Q{idx + 1}:</strong> {q.question}</p>
-                      <div className="ml-4">
-                        {q.options.map((opt, optIdx) => (
-                          <p key={optIdx} className={q.correctAnswer === opt ? "text-green-600 font-bold" : ""}>
-                            {String.fromCharCode(65 + optIdx)}) {opt}
+                    <div key={idx} className="mb-2 p-2 border rounded flex justify-between items-start">
+                      <div>
+                        <p><strong>Q{idx + 1}:</strong> {q.question}</p>
+                        <div className="ml-4">
+                          {q.options.map((opt, optIdx) => (
+                            <p 
+                              key={optIdx} 
+                              className={q.correctAnswer === opt ? "text-green-600 font-bold" : ""}
+                            >
+                              {String.fromCharCode(65 + optIdx)}) {opt}
+                            </p>
+                          ))}
+                          <p className="text-blue-600 font-semibold">
+                            Answer: {String.fromCharCode(q.options.indexOf(q.correctAnswer) + 65)}
                           </p>
-                        ))}
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveQuestion(idx)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        ✕
+                      </button>
                     </div>
                   ))}
                 </div>
