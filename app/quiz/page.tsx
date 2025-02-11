@@ -1,17 +1,74 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import QuizSelection from "../components/QuizSelection"
 import Quiz from "../components/Quiz"
 import Leaderboard from "../components/Leaderboard"
-import { quizzes } from "../data/quizzes"
 import Link from "next/link"
+import type { QuizData } from "../types"
 
 export default function QuizApp() {
   const [selectedQuiz, setSelectedQuiz] = useState<string | null>(null)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [leaderboardCategory, setLeaderboardCategory] = useState<string | undefined>(undefined)
   const [leaderboardType, setLeaderboardType] = useState<string | undefined>(undefined)
+  const [quizzes, setQuizzes] = useState<QuizData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [currentQuiz, setCurrentQuiz] = useState<QuizData | null>(null)
+
+  // Fetch all quizzes
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/quiz');
+        const data = await response.json();
+        
+        if (data.success && Array.isArray(data.quizzes)) {
+          // Ensure each quiz has an _id
+          const validQuizzes = data.quizzes.filter((quiz: any) => quiz && quiz._id);
+          setQuizzes(validQuizzes);
+        } else {
+          console.error('Invalid quiz data:', data);
+          setError('Failed to fetch quizzes');
+        }
+      } catch (error) {
+        console.error('Error loading quizzes:', error);
+        setError('Error loading quizzes');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuizzes();
+  }, []);
+
+  // Fetch specific quiz when selected
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      if (selectedQuiz) {
+        try {
+          const response = await fetch(`/api/quiz/${selectedQuiz}`);
+          const data = await response.json();
+          
+          if (data.success && data.quiz && data.quiz._id) {
+            setCurrentQuiz(data.quiz);
+          } else {
+            console.error('Invalid quiz data:', data);
+            setError('Failed to fetch quiz');
+          }
+        } catch (error) {
+          console.error('Error loading quiz:', error);
+          setError('Error loading quiz');
+        }
+      } else {
+        setCurrentQuiz(null);
+      }
+    };
+
+    fetchQuiz();
+  }, [selectedQuiz]);
 
   const handleQuizSelect = (quizId: string) => {
     setSelectedQuiz(quizId)
@@ -23,8 +80,42 @@ export default function QuizApp() {
     setShowLeaderboard(true)
   }
 
-  const categories = Array.from(new Set(Object.values(quizzes).map((quiz) => quiz.category)))
-  const types = Array.from(new Set(Object.values(quizzes).map((quiz) => quiz.type)))
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-xl">Loading quizzes...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-xl text-red-500">{error}</div>
+      </div>
+    );
+  }
+
+  if (!Array.isArray(quizzes)) {
+    console.error('Quizzes is not an array:', quizzes);
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-xl text-red-500">Error: Invalid quiz data</div>
+      </div>
+    );
+  }
+
+  // Get unique categories and types
+  const categories = Array.from(new Set(quizzes.map(quiz => quiz.category)));
+  const types = Array.from(new Set(quizzes.map(quiz => quiz.type)));
+
+  // Convert array to record for QuizSelection
+  const quizzesRecord = quizzes.reduce<Record<string, QuizData>>((acc, quiz) => {
+    if (quiz._id) {
+      acc[quiz._id] = quiz;
+    }
+    return acc;
+  }, {});
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -35,8 +126,8 @@ export default function QuizApp() {
             Home
           </Link>
         </div>
-        {selectedQuiz ? (
-          <Quiz quiz={quizzes[selectedQuiz]} onComplete={handleQuizComplete} />
+        {selectedQuiz && currentQuiz ? (
+          <Quiz quiz={currentQuiz} onComplete={handleQuizComplete} />
         ) : showLeaderboard ? (
           <>
             <div className="mb-4">
@@ -66,26 +157,11 @@ export default function QuizApp() {
               </select>
             </div>
             <Leaderboard category={leaderboardCategory} type={leaderboardType} />
-            <button
-              className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-              onClick={() => setShowLeaderboard(false)}
-            >
-              Back to Quiz Selection
-            </button>
           </>
         ) : (
-          <>
-            <QuizSelection quizzes={quizzes} onSelectQuiz={handleQuizSelect} />
-            <button
-              className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-              onClick={() => setShowLeaderboard(true)}
-            >
-              View Leaderboard
-            </button>
-          </>
+          <QuizSelection quizzes={quizzesRecord} onSelect={handleQuizSelect} />
         )}
       </div>
     </div>
   )
 }
-
