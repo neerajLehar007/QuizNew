@@ -19,6 +19,10 @@ export default function Question({ question, currentQuestion, totalQuestions, ha
     }
   }
 
+  if (!question || !question.options || !Array.isArray(question.options)) {
+    return <div>Error: Invalid question data</div>;
+  }
+
   return (
     <div>
       <p className="mb-4 text-sm text-gray-600">
@@ -46,4 +50,3 @@ export default function Question({ question, currentQuestion, totalQuestions, ha
     </div>
   )
 }
-

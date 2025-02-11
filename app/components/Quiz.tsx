@@ -6,7 +6,7 @@ import Results from "./Results"
 import type { QuizData, LeaderboardEntry } from "../types"
 
 interface QuizProps {
-  quiz: QuizData
+  quiz: QuizData & { _id: string }
   onComplete: () => void
 }
 
@@ -15,13 +15,26 @@ export default function Quiz({ quiz, onComplete }: QuizProps) {
   const [score, setScore] = useState(0)
   const [showResults, setShowResults] = useState(false)
   const [answered, setAnswered] = useState(false)
+  const [answers, setAnswers] = useState<Array<{
+    questionIndex: number,
+    selectedAnswer: string,
+    isCorrect: boolean
+  }>>([])
 
   const handleAnswer = (selectedAnswer: string) => {
     if (!answered) {
       setAnswered(true)
-      if (selectedAnswer === quiz.questions[currentQuestion].correctAnswer) {
+      const isCorrect = selectedAnswer === quiz.questions[currentQuestion].correctAnswer
+      
+      if (isCorrect) {
         setScore(score + 1)
       }
+
+      setAnswers([...answers, {
+        questionIndex: currentQuestion,
+        selectedAnswer,
+        isCorrect
+      }])
 
       setTimeout(() => {
         if (currentQuestion + 1 < quiz.questions.length) {
@@ -39,20 +52,41 @@ export default function Quiz({ quiz, onComplete }: QuizProps) {
     setScore(0)
     setShowResults(false)
     setAnswered(false)
+    setAnswers([])
   }
 
-  const saveScore = (name: string) => {
-    const entry: LeaderboardEntry = {
-      name,
-      score,
-      category: quiz.category,
-      type: quiz.type,
+  const saveScore = async (name: string) => {
+    try {
+      const response = await fetch('/api/quiz-attempt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          quizId: quiz._id,
+          userName: name,
+          score,
+          totalQuestions: quiz.questions.length,
+          category: quiz.category,
+          type: quiz.type,
+          answers
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        onComplete();
+      } else {
+        throw new Error(data.error || 'Failed to save score');
+      }
+    } catch (error) {
+      console.error('Error saving score:', error);
+      alert('Failed to save score. Please try again.');
     }
-    const storedLeaderboard = localStorage.getItem("quizLeaderboard")
-    const leaderboard: LeaderboardEntry[] = storedLeaderboard ? JSON.parse(storedLeaderboard) : []
-    leaderboard.push(entry)
-    localStorage.setItem("quizLeaderboard", JSON.stringify(leaderboard))
-    onComplete()
+  }
+
+  if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+    return <div>Error: Invalid quiz data</div>;
   }
 
   return (
@@ -81,4 +115,3 @@ export default function Quiz({ quiz, onComplete }: QuizProps) {
     </div>
   )
 }
-

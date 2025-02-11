@@ -5,6 +5,7 @@ export interface QuestionData {
 }
 
 export interface QuizData {
+  _id?: string
   title: string
   category: string
   type: string
@@ -12,9 +13,10 @@ export interface QuizData {
 }
 
 export interface LeaderboardEntry {
-  name: string
+  userName: string
   score: number
+  totalQuestions: number
   category: string
   type: string
+  createdAt: string
 }
-
