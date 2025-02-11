@@ -8,7 +8,7 @@ export default function LandingPage() {
         Challenge yourself with our diverse range of quizzes across multiple categories. Test your knowledge, learn new
         facts, and compete for the top spot on our leaderboard!
       </p>
-      <div className="space-x-4">
+      <div className="flex flex-col items-center space-y-4">
         <Link
           href="/quiz"
           className="bg-white text-blue-600 px-8 py-3 rounded-full text-lg font-semibold hover:bg-blue-100 transition-colors"
@@ -25,4 +25,3 @@ export default function LandingPage() {
     </div>
   )
 }
-
