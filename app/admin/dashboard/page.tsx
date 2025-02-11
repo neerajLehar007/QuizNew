@@ -9,14 +9,9 @@ export default function AdminDashboard() {
     title: "",
     category: "",
     type: "",
-    questions: [
-      {
-        question: "",
-        options: ["", "", "", ""],
-        correctAnswer: "",
-      },
-    ],
+    questions: [],
   });
+  const [questionText, setQuestionText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [existingQuizzes, setExistingQuizzes] = useState<(QuizData & { _id: string })[]>([]);
@@ -52,38 +47,55 @@ export default function AdminDashboard() {
     router.push("/admin");
   };
 
-  const handleAddQuestion = () => {
-    setNewQuiz({
-      ...newQuiz,
-      questions: [
-        ...newQuiz.questions,
-        {
-          question: "",
-          options: ["", "", "", ""],
-          correctAnswer: "",
-        },
-      ],
-    });
-  };
-
-  const handleQuestionChange = (index: number, field: string, value: string) => {
-    const updatedQuestions = [...newQuiz.questions];
-    if (field === "question") {
-      updatedQuestions[index].question = value;
-    } else if (field === "correctAnswer") {
-      updatedQuestions[index].correctAnswer = value;
+  const parseQuestionText = (text: string) => {
+    try {
+      const lines = text.trim().split('\n');
+      const questionMatch = lines[0].match(/^\d+\.\s*(.+)/);
+      if (!questionMatch) throw new Error("Invalid question format");
+      
+      const question = questionMatch[1];
+      const options = [];
+      let correctAnswer = "";
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.startsWith('correct:')) {
+          const correctOption = line.split(':')[1].trim();
+          correctAnswer = options[correctOption.charCodeAt(0) - 65]; // Convert A->0, B->1, etc.
+          break;
+        }
+        if (line.match(/^[A-D]\)/)) {
+          options.push(line.substring(3).trim());
+        }
+      }
+      
+      if (options.length !== 4 || !correctAnswer) {
+        throw new Error("Invalid format: Must have 4 options and a correct answer");
+      }
+      
+      return {
+        question,
+        options,
+        correctAnswer
+      };
+    } catch (error) {
+      console.error('Error parsing question:', error);
+      return null;
     }
-    setNewQuiz({ ...newQuiz, questions: updatedQuestions });
   };
 
-  const handleOptionChange = (
-    questionIndex: number,
-    optionIndex: number,
-    value: string
-  ) => {
-    const updatedQuestions = [...newQuiz.questions];
-    updatedQuestions[questionIndex].options[optionIndex] = value;
-    setNewQuiz({ ...newQuiz, questions: updatedQuestions });
+  const handleParseQuestion = () => {
+    const parsedQuestion = parseQuestionText(questionText);
+    if (parsedQuestion) {
+      setNewQuiz({
+        ...newQuiz,
+        questions: [...newQuiz.questions, parsedQuestion]
+      });
+      setQuestionText(""); // Clear the input after successful parsing
+      setError("");
+    } else {
+      setError("Failed to parse question. Please check the format.");
+    }
   };
 
   const handleDeleteQuiz = async (quizId: string) => {
@@ -111,6 +123,13 @@ export default function AdminDashboard() {
     setIsSubmitting(true);
     setError("");
 
+    // Validate that quiz has a title, category, type, and at least one question
+    if (!newQuiz.title || !newQuiz.category || !newQuiz.type || newQuiz.questions.length === 0) {
+      setError("Please fill in all fields and add at least one question");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/quiz', {
         method: 'POST',
@@ -129,14 +148,9 @@ export default function AdminDashboard() {
           title: "",
           category: "",
           type: "",
-          questions: [
-            {
-              question: "",
-              options: ["", "", "", ""],
-              correctAnswer: "",
-            },
-          ],
+          questions: [],
         });
+        setQuestionText("");
         // Refresh quiz list
         fetchQuizzes();
       } else {
@@ -220,112 +234,89 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="space-y-6">
-                {newQuiz.questions.map((question, qIndex) => (
-                  <div key={qIndex} className="border p-4 rounded">
-                    <h3 className="font-bold mb-4">Question {qIndex + 1}</h3>
-                    <div className="mb-4">
-                      <label className="block text-gray-700 text-sm font-bold mb-2">
-                        Question Text
-                      </label>
-                      <input
-                        type="text"
-                        value={question.question}
-                        onChange={(e) =>
-                          handleQuestionChange(qIndex, "question", e.target.value)
-                        }
-                        className="w-full p-2 border rounded"
-                        required
-                      />
+              {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
+                  {error}
+                </div>
+              )}
+
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Add Question (Format: "1. Question text\nA) Option1\nB) Option2\nC) Option3\nD) Option4\ncorrect: A")
+                </label>
+                <textarea
+                  value={questionText}
+                  onChange={(e) => setQuestionText(e.target.value)}
+                  className="w-full p-2 border rounded min-h-[200px]"
+                  placeholder="Enter question in the specified format..."
+                />
+                <button
+                  type="button"
+                  onClick={handleParseQuestion}
+                  className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                >
+                  Add Question
+                </button>
+              </div>
+
+              {newQuiz.questions.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold mb-2">Added Questions:</h3>
+                  {newQuiz.questions.map((q, idx) => (
+                    <div key={idx} className="mb-2 p-2 border rounded">
+                      <p><strong>Q{idx + 1}:</strong> {q.question}</p>
+                      <div className="ml-4">
+                        {q.options.map((opt, optIdx) => (
+                          <p key={optIdx} className={q.correctAnswer === opt ? "text-green-600 font-bold" : ""}>
+                            {String.fromCharCode(65 + optIdx)}) {opt}
+                          </p>
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      {question.options.map((option, oIndex) => (
-                        <div key={oIndex}>
-                          <label className="block text-gray-700 text-sm font-bold mb-2">
-                            Option {oIndex + 1}
-                          </label>
-                          <input
-                            type="text"
-                            value={option}
-                            onChange={(e) =>
-                              handleOptionChange(qIndex, oIndex, e.target.value)
-                            }
-                            className="w-full p-2 border rounded"
-                            required
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div>
-                      <label className="block text-gray-700 text-sm font-bold mb-2">
-                        Correct Answer
-                      </label>
-                      <input
-                        type="text"
-                        value={question.correctAnswer}
-                        onChange={(e) =>
-                          handleQuestionChange(qIndex, "correctAnswer", e.target.value)
-                        }
-                        className="w-full p-2 border rounded"
-                        required
-                      />
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 disabled:opacity-50"
+              >
+                {isSubmitting ? 'Submitting...' : 'Save Quiz'}
+              </button>
+            </form>
+          </div>
+
+          {/* Existing Quizzes */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-2xl font-bold mb-6">Existing Quizzes</h2>
+            {existingQuizzes.length === 0 ? (
+              <p className="text-gray-500">No quizzes found</p>
+            ) : (
+              <div className="space-y-4">
+                {existingQuizzes.map((quiz) => (
+                  <div key={quiz._id} className="border rounded p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <div>
+                        <h3 className="font-bold">{quiz.title}</h3>
+                        <p className="text-sm text-gray-600">
+                          Category: {quiz.category} | Type: {quiz.type}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Questions: {quiz.questions.length}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteQuiz(quiz._id)}
+                        className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
-
-              <div className="mt-6 flex gap-4">
-                {error && (
-                  <div className="text-red-500 mb-4">{error}</div>
-                )}
-                <button
-                  type="button"
-                  onClick={handleAddQuestion}
-                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                >
-                  Add Question
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 ${
-                    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Quiz'}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Existing Quizzes List */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-bold mb-6">Existing Quizzes</h2>
-            <div className="space-y-4">
-              {existingQuizzes.map((quiz) => (
-                <div key={quiz._id} className="border p-4 rounded">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-lg">{quiz.title}</h3>
-                      <p className="text-sm text-gray-600">Category: {quiz.category}</p>
-                      <p className="text-sm text-gray-600">Type: {quiz.type}</p>
-                      <p className="text-sm text-gray-600">
-                        Questions: {quiz.questions.length}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteQuiz(quiz._id)}
-                      className="text-red-500 hover:text-red-600"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {existingQuizzes.length === 0 && (
-                <p className="text-gray-500">No quizzes found.</p>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>
