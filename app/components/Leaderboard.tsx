@@ -36,13 +36,15 @@ export default function Leaderboard({ category, type }: LeaderboardProps) {
 
     const fetchLeaderboard = async () => {
       try {
-        const params = new URLSearchParams()
-        if (selectedCategory) params.append('category', selectedCategory)
-        if (selectedType) params.append('type', selectedType)
-
-        const response = await fetch(`/api/quiz-attempt?${params}`)
-        const data = await response.json()
-
+        setLoading(true);
+        const response = await fetch('/api/quiz-attempt');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch leaderboard');
+        }
+        
+        const data = await response.json();
+        
         if (data.success) {
           // Sort entries by score (descending) and date (most recent first)
           const sortedEntries = data.attempts.sort((a: LeaderboardEntry, b: LeaderboardEntry) => {
@@ -61,12 +63,13 @@ export default function Leaderboard({ category, type }: LeaderboardProps) {
           setCategories(uniqueCategories)
           setTypes(uniqueTypes)
         } else {
-          setError('Failed to fetch leaderboard')
+          setError('Failed to fetch leaderboard');
         }
-      } catch (error) {
-        setError('Error loading leaderboard')
+      } catch (err) {
+        setError('Failed to fetch leaderboard');
+        console.error(err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 

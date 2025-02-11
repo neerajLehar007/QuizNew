@@ -22,6 +22,10 @@ export default function Results({ score, totalQuestions, restartQuiz, onComplete
     }
   }
 
+  const handleChooseAnotherQuiz = () => {
+    window.location.reload()
+  }
+
   return (
     <div className="text-center">
       <h2 className="text-2xl font-bold mb-4">Quiz Results</h2>
@@ -46,7 +50,10 @@ export default function Results({ score, totalQuestions, restartQuiz, onComplete
         <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" onClick={restartQuiz}>
           Restart Quiz
         </button>
-        <button className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" onClick={onComplete}>
+        <button 
+          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" 
+          onClick={handleChooseAnotherQuiz}
+        >
           Choose Another Quiz
         </button>
       </div>
@@ -56,4 +63,3 @@ export default function Results({ score, totalQuestions, restartQuiz, onComplete
     </div>
   )
 }
-

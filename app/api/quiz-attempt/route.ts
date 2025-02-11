@@ -21,15 +21,8 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     await dbConnect();
-    const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category');
-    const type = searchParams.get('type');
     
-    const query: any = {};
-    if (category) query.category = category;
-    if (type) query.type = type;
-    
-    const attempts = await QuizAttempt.find(query)
+    const attempts = await QuizAttempt.find()
       .sort({ score: -1, createdAt: -1 })
       .limit(10);
       
