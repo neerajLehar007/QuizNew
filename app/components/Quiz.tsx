@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, memo } from "react"
 import Question from "./Question"
 import Results from "./Results"
 import type { QuizData, LeaderboardEntry } from "../types"
@@ -10,7 +10,7 @@ interface QuizProps {
   onComplete: () => void
 }
 
-export default function Quiz({ quiz, onComplete }: QuizProps) {
+const Quiz = memo(function Quiz({ quiz, onComplete }: QuizProps) {
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [score, setScore] = useState(0)
   const [showResults, setShowResults] = useState(false)
@@ -21,41 +21,44 @@ export default function Quiz({ quiz, onComplete }: QuizProps) {
     isCorrect: boolean
   }>>([])
 
-  const handleAnswer = (selectedAnswer: string) => {
+  const handleAnswer = useCallback((selectedAnswer: string) => {
     if (!answered) {
       setAnswered(true)
       const isCorrect = selectedAnswer === quiz.questions[currentQuestion].correctAnswer
       
       if (isCorrect) {
-        setScore(score + 1)
+        setScore(prev => prev + 1)
       }
 
-      setAnswers([...answers, {
+      setAnswers(prev => [...prev, {
         questionIndex: currentQuestion,
         selectedAnswer,
         isCorrect
       }])
 
-      setTimeout(() => {
-        if (currentQuestion + 1 < quiz.questions.length) {
-          setCurrentQuestion(currentQuestion + 1)
-          setAnswered(false)
-        } else {
-          setShowResults(true)
-        }
-      }, 1000)
+      // Use RAF for smoother transitions
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (currentQuestion + 1 < quiz.questions.length) {
+            setCurrentQuestion(prev => prev + 1)
+            setAnswered(false)
+          } else {
+            setShowResults(true)
+          }
+        }, 800)
+      })
     }
-  }
+  }, [answered, currentQuestion, quiz.questions])
 
-  const restartQuiz = () => {
+  const restartQuiz = useCallback(() => {
     setCurrentQuestion(0)
     setScore(0)
     setShowResults(false)
     setAnswered(false)
     setAnswers([])
-  }
+  }, [])
 
-  const saveScore = async (name: string) => {
+  const saveScore = useCallback(async (name: string) => {
     try {
       const response = await fetch('/api/quiz-attempt', {
         method: 'POST',
@@ -83,18 +86,26 @@ export default function Quiz({ quiz, onComplete }: QuizProps) {
       console.error('Error saving score:', error);
       alert('Failed to save score. Please try again.');
     }
-  }
+  }, [quiz._id, quiz.category, quiz.type, score, answers, onComplete])
 
-  if (!quiz || !quiz.questions || quiz.questions.length === 0) {
-    return <div>Error: Invalid quiz data</div>;
+  if (!quiz?.questions?.length) {
+    return (
+      <div className="p-4 text-red-500 bg-red-50 rounded-lg">
+        Error: Invalid quiz data
+      </div>
+    );
   }
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold mb-4">{quiz.title}</h2>
-      <p className="text-sm text-gray-600 mb-4">
-        Category: {quiz.category} | Type: {quiz.type}
-      </p>
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-lg">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold mb-2">{quiz.title}</h2>
+        <div className="flex items-center space-x-4 text-sm text-gray-600">
+          <span className="px-3 py-1 bg-blue-100 rounded-full">{quiz.category}</span>
+          <span className="px-3 py-1 bg-green-100 rounded-full">{quiz.type}</span>
+        </div>
+      </div>
+
       {showResults ? (
         <Results
           score={score}
@@ -105,6 +116,7 @@ export default function Quiz({ quiz, onComplete }: QuizProps) {
         />
       ) : (
         <Question
+          key={currentQuestion} // Force re-render on question change
           question={quiz.questions[currentQuestion]}
           currentQuestion={currentQuestion}
           totalQuestions={quiz.questions.length}
@@ -114,4 +126,6 @@ export default function Quiz({ quiz, onComplete }: QuizProps) {
       )}
     </div>
   )
-}
+})
+
+export default Quiz

@@ -2,18 +2,20 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'Quiz App',
+  description: 'Interactive Quiz Application',
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+      </body>
     </html>
   )
 }
